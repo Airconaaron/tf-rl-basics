@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np 
 import random
 from collections import deque 
+import cv2
 
 
 # Hyper Parameters As Specified in Paper:
@@ -22,6 +23,11 @@ OBSERVE = 50000. # timesteps to observe before training through experience repla
 NO_OP_MAX = 30 # number of max frames before we start doing actions
 ATARI_NUM = 16 # which is up, down, left, righ diagonals times two because of the button
 
+def preprocess(observation):
+    observation = cv2.cvtColor(cv2.resize(observation, (84, 110)), cv2.COLOR_BGR2GRAY)
+    observation = observation[26:110,:]
+    ret, observation = cv2.threshold(observation,1,255,cv2.THRESH_BINARY)
+    return np.reshape(observation,(84,84,1))
 
 # epsilon determines our exploration trade off
 class DQN:
@@ -187,17 +193,16 @@ class DQN:
         if self.timeStep > OBSERVE:
             self.train_network()
 
-        # print stuff later
-        state = ""
-        if self.timeStep <= OBSERVE:
-            state = "observe"
-        elif self.timeStep > OBSERVE and self.timeStep <= OBSERVE + EXPLORE_FRAMES:
-            state = "explore"
-        else:
-            state = "train"
-
-        print ("TIMESTEP", self.timeStep, "/ STATE", state, \
-        "/ EPSILON", self.epsilon)
+        if self.timeStep % 100 == 0:
+            state = ""
+            if self.timeStep <= OBSERVE:
+                state = "observe"
+            elif self.timeStep > OBSERVE and self.timeStep <= OBSERVE + EXPLORE_FRAMES:
+                state = "explore"
+            else:
+                state = "train"
+            print ("TIMESTEP", self.timeStep, "/ STATE", state, \
+            "/ EPSILON", self.epsilon)
 
         self.currentState = newState
         self.timeStep += 1
@@ -220,13 +225,5 @@ class DQN:
         return action
 
     def initState(self, observation):
-        self.currentState = np.stack([observation for i in range(AGENT_HISTORY)], axis = 2)
+        self.currentState = np.stack([observation] * 4, axis = 2)
         self.currentState = np.reshape(self.currentState, [84, 84 , AGENT_HISTORY])
-
-    # method to create a 84,84 greyscale image
-    def preprocess(self, observation):
-        obj1 = tf.image.rgb_to_grayscale(observation)
-        obj2 = tf.image.resize_images(obj1, [84,84])
-        obj3 = self.sess.run(obj2)
-
-        return obj3
