@@ -15,7 +15,6 @@ UPDATE_FREQ = 4
 
 LEARNING_RATE = 0.00025
 GRADIENT_MOMENTUM = 0.95
-
 FINAL_EPSILON = 0.1# final value of epsilon
 INITIAL_EPSILON = 1.0# # starting value of epsilon
 EXPLORE_FRAMES = 1000000. # frames over which to anneal epsilon
