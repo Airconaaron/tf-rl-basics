@@ -1,14 +1,12 @@
 import numpy as np
 import random
 import gym
-import tensorflow as tf
 
 from network import *
 
 
 NUM_EPOCHS = 1000
 
-tf.reset_default_graph()
 env = gym.make('Breakout-v0')
 action_num = env.action_space.n
 MyNetwork = DQN(actions=action_num)
