@@ -106,7 +106,7 @@ class DQN:
                 self.bias4_fcT = tf.Variable(tf.constant(0.01, shape=[512]), name="bias4_fcT")
                 self.fc4T = tf.nn.relu(tf.matmul(self.conv3_flatT, self.weight4_fcT) + self.bias4_fcT, name="fc1T")
 
-            with tf.name_scope('fc4T'):
+            with tf.name_scope('fc5T'):
                 self.weight5_fcT = tf.Variable(tf.truncated_normal(shape=[512, ATARI_NUM], stddev=0.01), name="weight5_fcT")
                 self.bias5_fcT = tf.Variable(tf.constant(0.01, shape=[ATARI_NUM]), name="bias5_fcT")
                 with tf.name_scope('outputT'):
