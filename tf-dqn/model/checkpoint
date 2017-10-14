@@ -1,3 +1,0 @@
-model_checkpoint_path: "netowrk-dqn70"
-all_model_checkpoint_paths: "netowrk-dqn60"
-all_model_checkpoint_paths: "netowrk-dqn70"

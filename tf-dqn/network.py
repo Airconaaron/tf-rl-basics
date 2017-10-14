@@ -135,11 +135,14 @@ class DQN:
 
     def create_placeholder(self):
         self.action_input = tf.placeholder("float", [None, ATARI_NUM])
+        num = tf.argmax(self.action_input, axis = 1)
+        tf.summary.histogram('action_space', num)
         self.yInput = tf.placeholder("float", [None])
         Q_Action = tf.reduce_sum(tf.multiply(self.QValue, self.action_input), reduction_indices = 1)
         self.cost = tf.reduce_mean(tf.square(self.yInput - Q_Action), name="cost")
-        #tf.summary.scalar('cost', self.cost)
-        self.trainStep = tf.train.RMSPropOptimizer(LEARNING_RATE,0.99, GRADIENT_MOMENTUM,1e-6).minimize(self.cost)
+        tf.summary.scalar('cost', self.cost)
+
+        self.trainStep = tf.train.RMSPropOptimizer(0.00025, 0.99, 0.0, 1e-6).minimize(self.cost)
 
     def train_network(self):
         minibatch = random.sample(self.memory,BATCH_SIZE)
@@ -158,11 +161,13 @@ class DQN:
             else:
                 y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
 
-        self.trainStep.run(feed_dict={
+        _, summary = self.sess.run([self.trainStep, self.merge_summary], feed_dict={
             self.yInput : y_batch,
             self.action_input : action_batch,
             self.input : state_batch
             })
+
+        self.train_writer.add_summary(summary, self.timeStep)
 
         # save network every 100000 iteration
         if self.timeStep % 100000 == 0:
@@ -176,8 +181,6 @@ class DQN:
         newState = np.append(obsv,self.currentState[:,:,1:],axis = 2)
         one_hot_action = np.zeros(ATARI_NUM)
         one_hot_action[action] = 1
-        new_sum = tf.summary.scalar('action_choice', action)
-        self.train_writer.add_summary(self.sess.run(new_sum), self.timeStep)
         self.memory.append((self.currentState,one_hot_action,reward,newState,terminal))
 
         if len(self.memory) > REPLAY_MEMORY:
@@ -201,8 +204,7 @@ class DQN:
         self.timeStep += 1
 
     def get_action(self):
-        summary, QValue = self.sess.run([self.merge_summary, self.QValue], feed_dict= {self.input: [self.currentState]})
-        self.train_writer.add_summary(summary, self.timeStep)
+        QValue = self.sess.run(self.QValue, feed_dict= {self.input: [self.currentState]})
         action = self.prevAction
 
         # time to change
@@ -214,7 +216,6 @@ class DQN:
         # change episilon
         if self.epsilon > FINAL_EPSILON and self.timeStep > OBSERVE:
             self.epsilon -= (INITIAL_EPSILON- FINAL_EPSILON)/EXPLORE_FRAMES
-
 
         self.prevAction = action
         return action
@@ -230,7 +231,3 @@ class DQN:
         obj3 = self.sess.run(obj2)
 
         return obj3
-
-
-
-
