@@ -37,6 +37,7 @@ class DQN:
         self.epsilon = init_epsilon
         self.actions = actions # atari defaults
         self.prevAction = 0
+        self.rewards = 0
 
         # notice that there really isn't any dropout
         with tf.name_scope('normal'):
@@ -46,22 +47,14 @@ class DQN:
                 self.weight1_conv = tf.Variable(tf.truncated_normal(shape=[8,8,AGENT_HISTORY, 32], stddev=0.01), name="weight1_conv")
                 self.bias1_conv = tf.Variable(tf.constant(0.01, shape=[32]), name="bias1_conv")
                 self.conv1 = tf.nn.relu(tf.nn.conv2d(self.input, self.weight1_conv, strides=[1,4,4,1], padding="VALID") + self.bias1_conv)
-                tf.summary.histogram('weights1', self.weight1_conv)
-                tf.summary.histogram('bias1', self.bias1_conv)
-
             with tf.name_scope('conv2'):
                 self.weight2_conv = tf.Variable(tf.truncated_normal(shape=[4,4,32,64], stddev=0.01), name="weight2_conv")
                 self.bias2_conv = tf.Variable(tf.constant(0.01, shape=[64]), name="bias2_conv")
                 self.conv2 = tf.nn.relu(tf.nn.conv2d(self.conv1, self.weight2_conv, strides=[1,2,2,1], padding="VALID") + self.bias2_conv, name="conv2")
-                tf.summary.histogram('weight2', self.weight2_conv)
-                tf.summary.histogram('bias2', self.bias2_conv)
-
             with tf.name_scope('conv3'):
                 self.weight3_conv = tf.Variable(tf.truncated_normal(shape=[3,3,64,64], stddev=0.01), name="weight3_conv")
                 self.bias3_conv = tf.Variable(tf.constant(0.01, shape=[64]), name="bias3_conv")
                 self.conv3 = tf.nn.relu(tf.nn.conv2d(self.conv2, self.weight3_conv, strides=[1,1,1,1], padding="VALID") + self.bias3_conv, name="conv3")
-                tf.summary.histogram('weight3_conv', self.weight3_conv)
-                tf.summary.histogram('bias3_conv', self.bias3_conv)
                 
             conv3_flat = tf.reshape(self.conv3, [-1, 7*7*64], name='flatten_conv3')
 
@@ -69,14 +62,10 @@ class DQN:
                 self.weight4_fc = tf.Variable(tf.truncated_normal(shape=[3136, 512], stddev=0.01), name="weight4_fc")
                 self.bias4_fc = tf.Variable(tf.constant(0.01, shape=[512]), name="bias4_fc")
                 self.fc4 = tf.nn.relu(tf.matmul(conv3_flat, self.weight4_fc) + self.bias4_fc)
-                tf.summary.histogram('weight4_fc', self.weight4_fc)
-                tf.summary.histogram('bias4_fc', self.bias4_fc)
 
             with tf.name_scope('fc5'):
                 self.weight5_fc = tf.Variable(tf.truncated_normal(shape=[512, ATARI_NUM], stddev=0.01), name="weight5_fc")
                 self.bias5_fc = tf.Variable(tf.constant(0.01, shape=[ATARI_NUM]), name="bias5_fc")
-                tf.summary.histogram('weight5_fc', self.weight5_fc)
-                tf.summary.histogram('bias5_fc', self.bias5_fc)
 
                 with tf.name_scope('output'):    
                     self.QValue = (tf.matmul(self.fc4, self.weight5_fc) + self.bias5_fc)
@@ -112,6 +101,18 @@ class DQN:
                 with tf.name_scope('outputT'):
                     self.QValueT = (tf.matmul(self.fc4T, self.weight5_fcT) + self.bias5_fcT)
 
+        with tf.name_scope('network'):
+            tf.summary.histogram('weights1', self.weight1_conv, collections=['network'])
+            tf.summary.histogram('bias1', self.bias1_conv, collections=['network'])
+            tf.summary.histogram('weight2', self.weight2_conv, collections=['network'])
+            tf.summary.histogram('bias2', self.bias2_conv, collections=['network'])
+            tf.summary.histogram('weight3_conv', self.weight3_conv, collections=['network'])
+            tf.summary.histogram('bias3_conv', self.bias3_conv, collections=['network'])
+            tf.summary.histogram('weight4_fc', self.weight4_fc, collections=['network'])
+            tf.summary.histogram('bias4_fc', self.bias4_fc, collections=['network'])
+            tf.summary.histogram('weight5_fc', self.weight5_fc, collections=['network'])
+            tf.summary.histogram('bias5_fc', self.bias5_fc, collections=['network'])
+
         self.copy_tensors = [
             tf.assign(self.weight1_convT, self.weight1_conv), 
             tf.assign(self.bias1_convT, self.bias1_conv), 
@@ -124,30 +125,31 @@ class DQN:
             tf.assign(self.weight5_fcT, self.weight5_fc),
             tf.assign(self.bias5_fcT, self.bias5_fc)
             ]
-        # define a operation to copy over our 'normal' network to the target
-
+        self.merge_summary0 = tf.summary.merge_all('network')
         self.create_placeholder()
-
         self.saver = tf.train.Saver()
         self.sess = tf.InteractiveSession()
-        self.sess.run(tf.global_variables_initializer())
-        self.merge_summary = tf.summary.merge_all()
         self.train_writer = tf.summary.FileWriter('./logs/train/1', self.sess.graph)
-        #file_writer = tf.summary.FileWriter('./logs/1', self.sess.graph)
+        self.sess.run(tf.global_variables_initializer())
 
     def copy_to_target(self):
         self.sess.run(self.copy_tensors)
 
     def create_placeholder(self):
-        self.action_input = tf.placeholder("float", [None, ATARI_NUM])
+        with tf.name_scope('cost'):
+            self.action_input = tf.placeholder("float", [None, ATARI_NUM])
+            self.yInput = tf.placeholder("float", [None])
+            Q_Action = tf.reduce_sum(tf.multiply(self.QValue, self.action_input), reduction_indices = 1)
+            self.cost = tf.reduce_mean(tf.square(self.yInput - Q_Action), name="cost")
         num = tf.argmax(self.action_input, axis = 1)
-        tf.summary.histogram('action_space', num)
-        self.yInput = tf.placeholder("float", [None])
-        Q_Action = tf.reduce_sum(tf.multiply(self.QValue, self.action_input), reduction_indices = 1)
-        self.cost = tf.reduce_mean(tf.square(self.yInput - Q_Action), name="cost")
-        tf.summary.scalar('cost', self.cost)
+        self.merge_summary = tf.summary.merge([
+            tf.summary.histogram('action_space', num, collections=['action']),
+            tf.summary.scalar('costs', self.cost, collections=['train'])
+        ])
+        self.sum_op = tf.summary.scalar('rewards', self.rewards, collections=['rewards'])
 
-        self.trainStep = tf.train.RMSPropOptimizer(0.00025, 0.99, 0.0, 1e-6).minimize(self.cost)
+        with tf.name_scope('train'):
+            self.trainStep = tf.train.RMSPropOptimizer(0.00025, 0.99, 0.0, 1e-6).minimize(self.cost)
 
     def train_network(self):
         minibatch = random.sample(self.memory,BATCH_SIZE)
@@ -166,18 +168,18 @@ class DQN:
             else:
                 y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
 
-        _, summary = self.sess.run([self.trainStep, self.merge_summary], feed_dict={
+        _, summary, summary2 = self.sess.run([self.trainStep, self.merge_summary, self.merge_summary0], feed_dict={
             self.yInput : y_batch,
             self.action_input : action_batch,
             self.input : state_batch
             })
 
         self.train_writer.add_summary(summary, self.timeStep)
+        self.train_writer.add_summary(summary2, self.timeStep)
 
         # save network every 100000 iteration
         if self.timeStep % 100000 == 0:
-            self.saver.save(self.sess, 'breakout', global_step = self.timeStep, max_to_keep = 10)
-            #figure out how to use restor then
+            self.saver.save(self.sess, './model/breakout', global_step = self.timeStep)
 
         if self.timeStep % UPDATE_FREQ == 0:
             self.copy_to_target()
@@ -186,6 +188,7 @@ class DQN:
         newState = np.append(obsv,self.currentState[:,:,1:],axis = 2)
         one_hot_action = np.zeros(ATARI_NUM)
         one_hot_action[action] = 1
+        self.rewards += reward
         self.memory.append((self.currentState,one_hot_action,reward,newState,terminal))
 
         if len(self.memory) > REPLAY_MEMORY:
@@ -227,3 +230,12 @@ class DQN:
     def initState(self, observation):
         self.currentState = np.stack([observation] * 4, axis = 2)
         self.currentState = np.reshape(self.currentState, [84, 84 , AGENT_HISTORY])
+
+    def load(self):
+        latest_checkpoint = tf.train.latest_checkpoint("./model")
+        if latest_checkpoint:
+            print("Loading model checkpoint {}...\n".format(latest_checkpoint))
+            self.saver.restore(self.sess, latest_checkpoint)
+    def done_writer(self, num):
+        self.train_writer.add_summary(self.sess.run(self.sum_op), num)
+        self.rewards = 0
