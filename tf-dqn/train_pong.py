@@ -9,7 +9,7 @@ NUM_EPOCHS = 10000
 
 env = gym.make('Breakout-v0')
 action_num = env.action_space.n
-MyNetwork = DQN(actions=action_num)
+MyNetwork = DQN(actions=action_num, game="PONG")
 MyNetwork.load()
 action = 0
 done = False

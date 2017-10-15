@@ -31,13 +31,26 @@ def preprocess(observation):
 
 # epsilon determines our exploration trade off
 class DQN:
-    def __init__(self, init_epsilon=INITIAL_EPSILON, actions=ATARI_NUM):
+    def __init__(self, init_epsilon=INITIAL_EPSILON, actions=ATARI_NUM, game="BREAKOUT"):
         self.memory = deque()
         self.timeStep = 0
         self.epsilon = init_epsilon
         self.actions = actions # atari defaults
         self.prevAction = 0
         self.rewards = 0
+
+        if game == "BREAKOUT":
+            self.logsdir = './logs/train/1'
+            self.modeldir= './model/breakout'
+        elif game == "SPACE":
+            self.logsdir = './logs/train/2'
+            self.modeldir = './model/space'
+        elif game == "PONG":
+            self.logsdir = './logs/train/3'
+            self.modeldir = './model/pong'
+        elif game == "PACMAN":
+            self.logsdir = './logs/train/4'
+            self.modeldir = './model/pacman'
 
         # notice that there really isn't any dropout
         with tf.name_scope('normal'):
@@ -129,7 +142,7 @@ class DQN:
         self.create_placeholder()
         self.saver = tf.train.Saver()
         self.sess = tf.InteractiveSession()
-        self.train_writer = tf.summary.FileWriter('./logs/train/1', self.sess.graph)
+        self.train_writer = tf.summary.FileWriter(self.logsdir, self.sess.graph)
         self.sess.run(tf.global_variables_initializer())
 
     def copy_to_target(self):
@@ -179,7 +192,7 @@ class DQN:
 
         # save network every 100000 iteration
         if self.timeStep % 100000 == 0:
-            self.saver.save(self.sess, './model/breakout', global_step = self.timeStep)
+            self.saver.save(self.sess, self.modeldir, global_step = self.timeStep)
 
         if self.timeStep % UPDATE_FREQ == 0:
             self.copy_to_target()
