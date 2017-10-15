@@ -26,5 +26,6 @@ for i in range(NUM_EPOCHS):
         observation, reward, done, info = env.step(action)
         if done:
             print("Episode finished after {} timesteps".format(t+1))
+            print("Rewards were: {}".format(MyNetwork.rewards))
             MyNetwork.done_writer(i)
             break

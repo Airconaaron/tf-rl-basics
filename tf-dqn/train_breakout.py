@@ -11,8 +11,6 @@ env = gym.make('Breakout-v0')
 action_num = env.action_space.n
 MyNetwork = DQN(actions=action_num, game="BREAKOUT")
 MyNetwork.load()
-action = 0
-done = False
 
 for i in range(NUM_EPOCHS):
     observation = env.reset()
@@ -26,5 +24,6 @@ for i in range(NUM_EPOCHS):
         observation, reward, done, info = env.step(action)
         if done:
             print("Episode finished after {} timesteps".format(t+1))
+            print("Rewards were: {}".format(MyNetwork.rewards))
             MyNetwork.done_writer(i)
             break

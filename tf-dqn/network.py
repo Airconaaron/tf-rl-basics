@@ -4,6 +4,7 @@ import random
 from collections import deque 
 import cv2
 
+import time
 
 # Hyper Parameters As Specified in Paper:
 BATCH_SIZE = 32
@@ -20,6 +21,7 @@ FINAL_EPSILON = 0.1# final value of epsilon
 INITIAL_EPSILON = 1.0# # starting value of epsilon
 EXPLORE_FRAMES = 1000000. # frames over which to anneal epsilon
 OBSERVE = 50000. # timesteps to observe before training through experience replay
+#OBSERVE = 1000
 NO_OP_MAX = 30 # number of max frames before we start doing actions
 ATARI_NUM = 16 # which is up, down, left, righ diagonals times two because of the button
 
@@ -125,6 +127,8 @@ class DQN:
             tf.summary.histogram('bias4_fc', self.bias4_fc, collections=['network'])
             tf.summary.histogram('weight5_fc', self.weight5_fc, collections=['network'])
             tf.summary.histogram('bias5_fc', self.bias5_fc, collections=['network'])
+        self.cost_placeholder = tf.placeholder_with_default(tf.constant(self.rewards), shape=None, name='rewards')
+        self.sum_op = tf.summary.scalar('rewards', self.cost_placeholder, collections=['rewards'])
 
         self.copy_tensors = [
             tf.assign(self.weight1_convT, self.weight1_conv), 
@@ -154,12 +158,11 @@ class DQN:
             self.yInput = tf.placeholder("float", [None])
             Q_Action = tf.reduce_sum(tf.multiply(self.QValue, self.action_input), reduction_indices = 1)
             self.cost = tf.reduce_mean(tf.square(self.yInput - Q_Action), name="cost")
-        num = tf.argmax(self.action_input, axis = 1)
-        self.merge_summary = tf.summary.merge([
-            tf.summary.histogram('action_space', num, collections=['action']),
-            tf.summary.scalar('costs', self.cost, collections=['train'])
-        ])
-        self.sum_op = tf.summary.scalar('rewards', self.rewards, collections=['rewards'])
+        #self.action_placeholder = tf.placeholder_with_default(tf.argmax(self.action_input, axis = 1), shape=[None,], name='action_space')
+        # self.merge_summary = tf.summary.merge([
+        #     tf.summary.histogram('action_space', self.action_placeholder, collections=['action']),
+        #     tf.summary.scalar('costs', self.cost_placeholder, collections=['train'])
+        # ])
 
         with tf.name_scope('train'):
             self.trainStep = tf.train.RMSPropOptimizer(0.00025, 0.99, 0.0, 1e-6).minimize(self.cost)
@@ -181,14 +184,22 @@ class DQN:
             else:
                 y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
 
-        _, summary, summary2 = self.sess.run([self.trainStep, self.merge_summary, self.merge_summary0], feed_dict={
+        start = time.time()
+        # _, summary, summary2 = self.sess.run([self.trainStep, self.merge_summary, self.merge_summary0], feed_dict={
+        #     self.yInput : y_batch,
+        #     self.action_input : action_batch,
+        #     self.input : state_batch
+        #     })
+        self.sess.run([self.trainStep], feed_dict={
             self.yInput : y_batch,
             self.action_input : action_batch,
             self.input : state_batch
             })
+        end = time.time()
+        #print(end - start, 'network stuff') # summary ops are double what i have what else could be slowing it down
 
-        self.train_writer.add_summary(summary, self.timeStep)
-        self.train_writer.add_summary(summary2, self.timeStep)
+        # self.train_writer.add_summary(summary, self.timeStep)
+        # self.train_writer.add_summary(summary2, self.timeStep)
 
         # save network every 100000 iteration
         if self.timeStep % 100000 == 0:
@@ -196,6 +207,7 @@ class DQN:
 
         # Update our thing every 10000
         if self.timeStep % TARGET_UPDATE_FREQ == 0:
+            print('Copying to target')
             self.copy_to_target()
 
     def set_perception(self,obsv, action, reward, terminal):
@@ -208,6 +220,7 @@ class DQN:
         if len(self.memory) > REPLAY_MEMORY:
             self.memory.popleft()
         if self.timeStep > OBSERVE:
+            # training step
             self.train_network()
 
         if self.timeStep % 100 == 0:
@@ -222,7 +235,7 @@ class DQN:
             "/ EPSILON", self.epsilon)
 
         self.currentState = newState
-        self.timeStep += 1
+        self.timeStep += 1 
 
     def get_action(self):
         QValue = self.sess.run(self.QValue, feed_dict= {self.input: [self.currentState]})
@@ -253,5 +266,8 @@ class DQN:
             print("Loading model checkpoint {}...\n".format(latest_checkpoint))
             self.saver.restore(self.sess, latest_checkpoint)
     def done_writer(self, num):
-        self.train_writer.add_summary(self.sess.run(self.sum_op), num)
+        summary2 = self.sess.run(self.merge_summary0)
+        self.train_writer.add_summary(self.sess.run(self.sum_op, feed_dict={self.cost_placeholder : self.rewards}), num)
+        #self.train_writer.add_summary(summary, self.timeStep)
+        self.train_writer.add_summary(summary2, self.timeStep)
         self.rewards = 0
