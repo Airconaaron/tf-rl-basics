@@ -5,9 +5,9 @@ import gym
 from network import *
 
 
-NUM_EPOCHS = 10000
+NUM_EPOCHS = 100000
 
-env = gym.make('Breakout-v0')
+env = gym.make('SpaceInvaders-v0')
 action_num = env.action_space.n
 MyNetwork = DQN(actions=action_num, game ="SPACE")
 MyNetwork.load()

@@ -41,16 +41,16 @@ class DQN:
 
         if game == "BREAKOUT":
             self.logsdir = './logs/train/1'
-            self.modeldir= './model/breakout'
+            self.modeldir= './model/breakout/'
         elif game == "SPACE":
             self.logsdir = './logs/train/2'
-            self.modeldir = './model/space'
+            self.modeldir = './model/space/'
         elif game == "PONG":
             self.logsdir = './logs/train/3'
-            self.modeldir = './model/pong'
+            self.modeldir = './model/pong/'
         elif game == "PACMAN":
             self.logsdir = './logs/train/4'
-            self.modeldir = './model/pacman'
+            self.modeldir = './model/pacman/'
 
         # notice that there really isn't any dropout
         with tf.name_scope('normal'):
@@ -194,7 +194,8 @@ class DQN:
         if self.timeStep % 100000 == 0:
             self.saver.save(self.sess, self.modeldir, global_step = self.timeStep)
 
-        if self.timeStep % UPDATE_FREQ == 0:
+        # Update our thing every 10000
+        if self.timeStep % TARGET_UPDATE_FREQ == 0:
             self.copy_to_target()
 
     def set_perception(self,obsv, action, reward, terminal):
@@ -237,6 +238,8 @@ class DQN:
         if self.epsilon > FINAL_EPSILON and self.timeStep > OBSERVE:
             self.epsilon -= (INITIAL_EPSILON- FINAL_EPSILON)/EXPLORE_FRAMES
 
+        if action >= self.actions or action < 0:
+            action = 0
         self.prevAction = action
         return action
 
@@ -245,7 +248,7 @@ class DQN:
         self.currentState = np.reshape(self.currentState, [84, 84 , AGENT_HISTORY])
 
     def load(self):
-        latest_checkpoint = tf.train.latest_checkpoint("./model")
+        latest_checkpoint = tf.train.latest_checkpoint(self.modeldir)
         if latest_checkpoint:
             print("Loading model checkpoint {}...\n".format(latest_checkpoint))
             self.saver.restore(self.sess, latest_checkpoint)

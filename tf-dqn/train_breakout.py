@@ -5,7 +5,7 @@ import gym
 from network import *
 
 
-NUM_EPOCHS = 10000
+NUM_EPOCHS = 100000
 
 env = gym.make('Breakout-v0')
 action_num = env.action_space.n
